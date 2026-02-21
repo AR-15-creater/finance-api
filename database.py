@@ -1,0 +1,19 @@
+import sqlite3
+DB_NAME = "expense.db"
+
+def get_connection():
+    return sqlite3.connect("finance.db")
+
+def create_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount REAL NOT NULl,
+            category TEXT NOT NULL)
+    """ )
+
+    conn.commit()
+    conn.close()
