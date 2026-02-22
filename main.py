@@ -8,19 +8,23 @@ from database import get_connection
 from ai_service import generate_insight
 from dotenv import load_dotenv
 from database import create_table
+from pathlib import Path
+
 
 app = FastAPI()
 
 create_table()
 
-load_dotenv()
+env_path=Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
+print("DEBUG API KEY:",os.getenv("OPENAI_API_KEY"))
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-                   CRETATE A TABLE IF NOT EXISTS expenses(
+                   CREATE A TABLE IF NOT EXISTS expenses(
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         amount REAL NOT NULL,
                         category TEXT NOT NULL
@@ -43,11 +47,11 @@ class Expense(BaseModel):
 
 @app.post("/expenses")
 def add_expense(expense : Expense):
-    conn = sqlite3.conncet("expense.db")
+    conn = sqlite3.connect("expense.db")
     cursor = conn.cursor()
 
     cursor.execute(
-        "INSERT INTO expenses (amount,catogry)VALUES(?,?)",
+        "INSERT INTO expenses (amount,category)VALUES(?,?)",
         (expense.amount,expense.category)
     )
     conn.commit()
@@ -75,12 +79,12 @@ def get_expenses():
         })
     return expenses
 
-@app.get("/expenses/{[expense_id]}")
+@app.get("/expenses/{expense_id}")
 def get_expense(expense_id:int):
     conn = sqlite3.connect("expense.db")
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM expenses WHERE id = ?",(expense_id))
+    cursor.execute("SELECT * FROM expenses WHERE id = ?",(expense_id,))
     row = cursor.fetchone()
 
     conn.close
@@ -124,7 +128,7 @@ def expense_insight():
     cursor = conn.cursor()
      
     cursor.execute("SELECT sum(amount) FROM expenses")
-    total = cursor.fetchcone()[0] or 0
+    total = cursor.fetchone()[0] or 0
 
     cursor.execute("SELECT category, sum(amount) FROM expenses GROUP BY category")
     rows = cursor.fetchall()
@@ -150,13 +154,13 @@ def expense_insight():
         raise HTTPException(status_code=500,detial="AI genration failed{str(e)}")
 
    
-@app.put("/expenses/{[expense_id]}")
+@app.put("/expenses/{expense_id}")
 def update_expense(expense_id:int):
-    conn = sqlite3.conncet("expense.db") 
-    cursor = conn.sursor
+    conn = sqlite3.connect("expense.db") 
+    cursor = conn.cursor()
 
     cursor.execute(
-        "UPDATE expenses SET amount = ?, category = ?,WHERE id =? ",
+        "UPDATE expenses SET amount = ?, category = ? WHERE id =? ",
         (expense.amount, expense.category, expense_id)
     )
 
@@ -177,7 +181,7 @@ def delete_expense(expense_id:int):
    conn = get_connection()
    cursor = conn.cursor()
 
-   cursor.execute("DELETE FROM id WHERE = ?",(expense_id))
+   cursor.execute("DELETE FROM expenses WHERE id = ?",(expense_id))
    conn.commit 
 
    deleted_count = cursor.rowcount
