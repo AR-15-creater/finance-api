@@ -15,5 +15,12 @@ def create_table():
             category TEXT NOT NULL)
     """ )
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS budgets(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Category TEXT NOT NULL,
+            monthly_limit REAL NOT NULL)
+    """)
+
     conn.commit()
     conn.close()

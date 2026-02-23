@@ -9,6 +9,7 @@ from ai_service import generate_insight
 from dotenv import load_dotenv
 from database import create_table
 from pathlib import Path
+from models import expense, Budget
 
 
 app = FastAPI()
@@ -51,13 +52,26 @@ def add_expense(expense : Expense):
     cursor = conn.cursor()
 
     cursor.execute(
-        "INSERT INTO expenses (amount,category)VALUES(?,?)",
+        "INSERT INTO expenses (amount, category)VALUES(?,?)",
         (expense.amount,expense.category)
     )
     conn.commit()
     conn.close
 
     return{"Message":"Expense added succesfully"}
+
+@app.post("/budgets")
+def add_budget(budget: Budget):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.excute(
+        "INSERT INTO budgets(category, monthly_limit) VALUES (?, ?)",
+        (budget.category,budget.monthly_limit)
+    )
+    conn.commit()
+    conn.close
+
+    return{"Message":"Budget added succesfully"}
 
 @app.get("/expenses")
 def get_expenses():
@@ -132,13 +146,44 @@ def expense_insight():
 
     cursor.execute("SELECT category, sum(amount) FROM expenses GROUP BY category")
     rows = cursor.fetchall()
-    conn.close()
-
+    
     categories = {row[0]: row[1] for row in rows }
+    highest_category = max(categories, key=categories.get) if categories else None
+
+    category_percentages = {}
+    if total >0:
+        for category, amount in categories.items():
+            category_percentages[category] = round((amount/total)*100,2)
+
+    cursor.execute("SELECT category, monthly_limit FROM budgets")
+    budget_rows = cursor.fetchall()
+
+    budget_limits = {row[0]: row[1] for row in budget_rows}
+
+    budget_warnings = []
+
+    for category, amount in categories.items():
+        if category in budget_limits:
+            if amount > budget_limits[category]:
+                budget_warnings.append(
+                    f"{category} exceeds budget by{amount - budget_limits[category]}"
+                )
+
+
+    risk_flags = []
+    for category, percent in category_percentages.items():
+        if percent >= 50:
+            risk_flags.append(f"{category} exceeds 50% of total spending")
+    if total == 0:
+        risk_flags.append("No Spending Data available")
 
     summary_data ={
         "total":total,
-        "categories":categories
+        "categories":categories,
+        "highest_category":highest_category,
+        "percentage":category_percentages,
+        "risk_flgas":risk_flags,
+        "budget_warnings":budget_warnings
     }
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -148,10 +193,15 @@ def expense_insight():
     
     try:
         insight = generate_insight(summary_data,api_key)
-        return{"insight":insight}
+        return{"total_spending":total,
+               "highest_category":highest_category,
+               "category_breakdown":categories,
+               "ai_insight":insight,
+               "percentage":category_percentages,
+               "budget_warnings":budget_warnings}
     
     except Exception as e:
-        raise HTTPException(status_code=500,detial="AI genration failed{str(e)}")
+        raise HTTPException(status_code=500,detail="AI genration failed{str(e)}")
 
    
 @app.put("/expenses/{expense_id}")
@@ -172,8 +222,6 @@ def update_expense(expense_id:int):
         return{"error":"Expense Not found"}
     
     return{"Message": "Expense added succesfully"}
-
-
 
 
 @app.delete("/expenses/{expense_id}")
