@@ -9,7 +9,10 @@ from ai_service import generate_insight
 from dotenv import load_dotenv
 from database import create_table
 from pathlib import Path
-from models import expense, Budget
+from models import expense, Budget, User
+from auth import hash_password, verify_password, create_access_token, verify_token
+from fastapi import Depends
+
 
 
 app = FastAPI()
@@ -73,13 +76,64 @@ def add_budget(budget: Budget):
 
     return{"Message":"Budget added succesfully"}
 
+@app.post("/register")
+def register(user: User):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    hashed_pw = hash_password(user.password)
+
+    try:
+        cursor.execute(
+        "INSERT INTO users(username, password) VALUES(?, ?)",
+        (user.username, hashed_pw)
+        )
+        conn.commit()
+    except:
+        raise HTTPException(status_code=400, detail="Username already Exists")
+    conn.close()
+    return{"Messgae":"User registerd succesfully"}
+
+@app.post("/login")
+def login(user: User):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id, password FROM users WHERE username = ?",
+        (user.username,)
+    )
+
+    result = cursor.fetchone()
+    conn.close()
+
+    if not result:
+        raise HTTPException(status_code=400,detail="Invalid Credentials")
+    
+    user_id, hashed_password =result
+
+    if not verify_password(user.password, hashed_password):
+        raise HTTPException(status_code=400,detail="Invalid Credentials")
+    
+    token = create_access_token({"sub":user.username,"user_id":user_id})
+
+    return{"access_token": token}
+
+
+
 @app.get("/expenses")
-def get_expenses():
+def get_expenses(user = Depends(verify_token)):
     conn = sqlite3.connect("expense.db")
     cursor = conn.cursor()
 
     cursor.execute("SELECT * From expenses")
     rows = cursor.fetchall()
+
+    user_id = user["user_id"]
+    cursor.execute(
+        "SELECT * FROM expenses WHERE user_id = ?",
+        (user_id,)
+    )
 
     conn.close
 
@@ -229,7 +283,7 @@ def delete_expense(expense_id:int):
    conn = get_connection()
    cursor = conn.cursor()
 
-   cursor.execute("DELETE FROM expenses WHERE id = ?",(expense_id))
+   cursor.execute("DELETE FROM expenses WHERE id = ?",(expense_id,))
    conn.commit 
 
    deleted_count = cursor.rowcount

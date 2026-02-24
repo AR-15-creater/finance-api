@@ -10,3 +10,7 @@ class Budget(BaseModel):
     id: Optional[int] = None
     category: str
     monthly_limit: float
+
+class User(BaseModel):
+    username:str
+    password:str
