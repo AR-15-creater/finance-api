@@ -12,12 +12,17 @@ from pathlib import Path
 from models import expense, Budget, User
 from auth import hash_password, verify_password, create_access_token, verify_token
 from fastapi import Depends
+from fastapi.staticfiles import StaticFiles
 
 
 
 app = FastAPI()
 
 create_table()
+
+app.mount("/frontend",
+StaticFiles(directory="frontend"),
+name ="frontend")
 
 env_path=Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
@@ -59,7 +64,7 @@ def add_expense(expense : Expense):
         (expense.amount,expense.category)
     )
     conn.commit()
-    conn.close
+    conn.close()
 
     return{"Message":"Expense added succesfully"}
 
@@ -67,12 +72,12 @@ def add_expense(expense : Expense):
 def add_budget(budget: Budget):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.excute(
+    cursor.execute(
         "INSERT INTO budgets(category, monthly_limit) VALUES (?, ?)",
         (budget.category,budget.monthly_limit)
     )
     conn.commit()
-    conn.close
+    conn.close()
 
     return{"Message":"Budget added succesfully"}
 
@@ -92,7 +97,7 @@ def register(user: User):
     except:
         raise HTTPException(status_code=400, detail="Username already Exists")
     conn.close()
-    return{"Messgae":"User registerd succesfully"}
+    return{"Message":"User registerd succesfully"}
 
 @app.post("/login")
 def login(user: User):
@@ -135,7 +140,7 @@ def get_expenses(user = Depends(verify_token)):
         (user_id,)
     )
 
-    conn.close
+    conn.close()
 
     expenses = []
 
@@ -155,7 +160,7 @@ def get_expense(expense_id:int):
     cursor.execute("SELECT * FROM expenses WHERE id = ?",(expense_id,))
     row = cursor.fetchone()
 
-    conn.close
+    conn.close()
 
     if not row:
         raise HTTPException(status_code = 404, detail="Expense Not Found")
@@ -180,7 +185,7 @@ def expense_summary():
     cursor.execute("SELECT category , sum(amount) FROM expenses GROUP BY category")
     rows = cursor.fetchall()
 
-    conn.close
+    conn.close()
     category_summary = {}
     for row in rows:
         category_summary[row[0]]  = row[1]
@@ -259,7 +264,7 @@ def expense_insight():
 
    
 @app.put("/expenses/{expense_id}")
-def update_expense(expense_id:int):
+def update_expense(expense_id:int, expense: Expense):
     conn = sqlite3.connect("expense.db") 
     cursor = conn.cursor()
 
@@ -270,7 +275,7 @@ def update_expense(expense_id:int):
 
     conn.commit()
     updated_count = cursor.rowcount
-    conn.close
+    conn.close()
 
     if updated_count == 0:
         return{"error":"Expense Not found"}
@@ -287,7 +292,7 @@ def delete_expense(expense_id:int):
    conn.commit 
 
    deleted_count = cursor.rowcount
-   conn.close
+   conn.close()
 
    if deleted_count == 0:
        raise HTTPException(status_code = 404, detail = "Expense Not Found")

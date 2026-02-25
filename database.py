@@ -22,5 +22,12 @@ def create_table():
             monthly_limit REAL NOT NULL)
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT)
+""")
+
     conn.commit()
     conn.close()
