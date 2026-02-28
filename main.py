@@ -13,10 +13,18 @@ from models import expense, Budget, User
 from auth import hash_password, verify_password, create_access_token, verify_token
 from fastapi import Depends
 from fastapi.staticfiles import StaticFiles
-
+from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 create_table()
 
@@ -88,16 +96,15 @@ def register(user: User):
 
     hashed_pw = hash_password(user.password)
 
-    try:
-        cursor.execute(
+    cursor.execute(
         "INSERT INTO users(username, password) VALUES(?, ?)",
         (user.username, hashed_pw)
-        )
-        conn.commit()
-    except:
-        raise HTTPException(status_code=400, detail="Username already Exists")
+    )
+
+    conn.commit()
     conn.close()
-    return{"Message":"User registerd succesfully"}
+
+    return {"message": "User registered successfully"}
 
 @app.post("/login")
 def login(user: User):
@@ -131,14 +138,14 @@ def get_expenses(user = Depends(verify_token)):
     conn = sqlite3.connect("expense.db")
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * From expenses")
-    rows = cursor.fetchall()
-
     user_id = user["user_id"]
+
     cursor.execute(
-        "SELECT * FROM expenses WHERE user_id = ?",
+        "SELECT id, amount, category FROM expenses WHERE user_id = ?",
         (user_id,)
     )
+
+    rows = cursor.fetchall()
 
     conn.close()
 
@@ -146,10 +153,11 @@ def get_expenses(user = Depends(verify_token)):
 
     for row in rows:
         expenses.append({
-            "id":row[0],
-            "amount":row[1],
-            "category":row[2]
+            "id": row[0],
+            "amount": row[1],
+            "category": row[2]
         })
+
     return expenses
 
 @app.get("/expenses/{expense_id}")
